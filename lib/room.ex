@@ -4,6 +4,7 @@ defmodule Room do
   def connect_participan(room = %Room{}, participan) do
     unless Enum.member?(room.participans, participan) do
       IO.puts("Conecting participan: #{participan}")
+      Process.sleep(Enum.random(1..30))
       %Room{
         name: room.name,
         participans: room.participans ++ [participan | []],
