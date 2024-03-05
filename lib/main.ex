@@ -1,36 +1,45 @@
 defmodule Main do
-  def main do
-    room01 = Room.new_room("Room01")
+  defp connect_to_room(room, participan) do
     resource_id = {User, {:id, 1}}
-
-    connect_new_participan = fn participan ->
-      lock = Mutexa.await(MyMain, resource_id)
-      room01 = Room.connect_participan(room01, participan)
-      Mutex.release(MyMain, lock)
-    end
-
-    spawn(fn -> connect_new_participan.("Participan 1") end)
-    IO.inspect room01
+    lock = Mutex.await(MyMutex, resource_id)
+    Process.sleep(1000)
+    room = Room.connect_participan(room, participan)
+    Mutex.release(MyMutex, lock)
+    room
   end
 
-  def test do
-    room01 = Room.new_room("Room01")
-    get_room = fn -> room01 end
-    room01 = Room.connect_participan(room01, "Participan 1")
-    room01 = Room.connect_participan(room01, "Participan 2")
-    room01 = Room.connect_participan(room01, "Participan 2")
-    room01 = Room.add_message(room01, "Participan 2", "First message")
-    room01 = Room.disconnect_participan(room01, "Participan 2")
-    IO.inspect(get_room.())
+  defp add_message(room, participan, message) do
+    resource_id = {User, {:id, 1}}
+    lock = Mutex.await(MyMutex, resource_id)
+
+    room = Room.add_message(room, participan, message)
+    Mutex.release(MyMutex, lock)
+    room
   end
 
-  def main2 do
-    RoomManager.start()
-    pid = spawn(fn -> Task.async(fn -> RoomManager.connect_participan("Participan 21") end) end)
-    Enum.each(1..15, fn pos -> spawn(fn -> RoomManager.connect_participan("Participan #{pos}") end) end)
+  def main do
+    # This create the supper visor
+    children = [
+      {Mutex, name: MyMutex, meta: "some_data"}
+    ]
 
+    {:ok, _pid} = Supervisor.start_link(children, strategy: :one_for_one)
 
-    IO.inspect RoomManager.get_room()
+    room = Room.new_room("Room-01")
+    id_participan_list = 1..12
+
+    rooms_list =
+      Enum.map(id_participan_list, fn pos ->
+        Task.async(fn ->
+          # This sleep is for to test that every process are working independing of each other
+          Process.sleep(Enum.random(1..10))
+          connect_to_room(room, "Participan #{pos}")
+        end)
+      end)
+      |> Task.await_many(60000)
+
+    participans_list = rooms_list |> Enum.map(fn room -> room.participans end)
+
+    IO.inspect(participans_list)
   end
-
 end
